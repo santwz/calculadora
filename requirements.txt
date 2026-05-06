@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+scipy
+plotly
+python-dateutil
+requests
+pytest
+xlrd
+holidays
+openpyxl
