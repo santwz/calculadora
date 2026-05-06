@@ -1,6 +1,15 @@
 from pathlib import Path
 
 
+def test_project_does_not_reference_removed_brand():
+    checked_files = [Path("app.py"), Path("README.md")]
+    combined_text = "\n".join(path.read_text(encoding="utf-8") for path in checked_files)
+
+    removed_brand_terms = ["BO" + "COM", "B" + "BM"]
+    for term in removed_brand_terms:
+        assert term not in combined_text.upper()
+
+
 def test_app_uses_active_passive_labels_instead_of_side_a_b_labels():
     app_source = Path("app.py").read_text(encoding="utf-8")
 
