@@ -10,7 +10,7 @@ from utils.vc_inputs import resolve_vc_spots
 from utils.xlsx_export import build_calculation_memory_xlsx
 
 st.set_page_config(
-    page_title="Calculadora de Derivativos | BOCOM BBM",
+    page_title="Calculadora de Derivativos",
     layout="wide",
     page_icon="💸"
 )
@@ -495,7 +495,7 @@ if st.button("🚀 Calcular Swap", type="primary", use_container_width=True):
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 1rem;">
-    <p>💼 <strong>BOCOM BBM</strong> | Calculadora de Derivativos</p>
+    <p>💼 <strong>Calculadora de Derivativos</strong></p>
     <p style="font-size: 0.9rem;">Desenvolvido por Wallace Santo | <a href="mailto:wlsant@im.ufrj.br">wlsant@im.ufrj.br</a></p>
 </div>
 """, unsafe_allow_html=True)

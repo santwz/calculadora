@@ -1,4 +1,4 @@
-# Calculadora de Derivativos | BOCOM BBM
+# Calculadora de Derivativos
 
 Calculadora de swaps e derivativos com suporte a pontas Pre, CDI, VC/Dolar, IPCA, SOFR e Duplo Indexador.
 
