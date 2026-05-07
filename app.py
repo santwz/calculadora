@@ -130,7 +130,7 @@ st.markdown('<div class="section-heading">⚙️ Configuração do Swap</div>', 
 today = date.today()
 config_col0, config_col1, config_col2, config_col3, config_col4, config_col5 = st.columns([0.75, 1.15, 1.15, 1, 1, 1])
 with config_col0:
-    moeda_contrato = st.selectbox("Moeda", ["USD", "EUR"], key="moeda_contrato")
+    moeda_contrato = st.selectbox("Moeda", ["USD", "EUR", "BRL"], key="moeda_contrato")
 with config_col1:
     notional_text = st.text_input("Notional", value=format_ptbr_number(1_000_000.0), key="notional")
 with config_col2:
@@ -140,7 +140,20 @@ with config_col3:
 with config_col4:
     end_date = st.date_input("Data Vencimento", value=shift_months(today, -1))
 with config_col5:
-    cotacao_cliente_global = st.number_input(f"Cotação Cliente ({moeda_contrato}/BRL)", value=5.0, format="%.4f")
+    if moeda_contrato == "BRL":
+        cotacao_cliente_global = 1.0
+        st.number_input(
+            f"Cotação Cliente ({moeda_contrato}/BRL)",
+            value=1.0,
+            format="%.4f",
+            disabled=True,
+        )
+    else:
+        cotacao_cliente_global = st.number_input(
+            f"Cotação Cliente ({moeda_contrato}/BRL)",
+            value=5.0,
+            format="%.4f",
+        )
 
 try:
     notional = parse_ptbr_number(notional_text)
@@ -194,15 +207,20 @@ def configure_leg(prefix, side_label, cotacao_cliente, moeda):
         
     elif leg_type == "Moeda (VC)":
         params['spot_start'] = cotacao_cliente
-        supports_auto_quote = moeda == "USD"
-        if supports_auto_quote:
-            use_auto_ptax = st.checkbox(f"🤖 Buscar cotação final automaticamente {side_label}", key=f"auto_ptax_{prefix}")
-        else:
-            st.info("Para EUR, informe a cotação final manualmente.")
+        if moeda == "BRL":
+            st.info("Para BRL, a cotação inicial e final são 1,0000.")
+            params['spot_end'] = 1.0
             use_auto_ptax = False
+        else:
+            supports_auto_quote = moeda == "USD"
+            if supports_auto_quote:
+                use_auto_ptax = st.checkbox(f"🤖 Buscar cotação final automaticamente {side_label}", key=f"auto_ptax_{prefix}")
+            else:
+                st.info("Para EUR, informe a cotação final manualmente.")
+                use_auto_ptax = False
         params['auto_ptax'] = use_auto_ptax
         
-        if not use_auto_ptax:
+        if moeda != "BRL" and not use_auto_ptax:
             params['spot_end'] = st.number_input(f"Cotação Final ({moeda}/BRL) {side_label}", value=5.50, format="%.4f", key=f"spot_e_{prefix}")
         
         params['coupon'] = st.number_input(f"Cupom Cambial (% a.a.) {side_label}", value=5.0, key=f"cupom_vc_{prefix}") / 100
@@ -246,14 +264,34 @@ def configure_leg(prefix, side_label, cotacao_cliente, moeda):
         
     elif leg_type == "SOFR":
         params['spot_start'] = cotacao_cliente
-        params['spot_end'] = st.number_input(f"Cotação Final {side_label}", value=5.50, format="%.4f", key=f"sofr_spot_e_{prefix}")
+        if moeda == "BRL":
+            params['spot_end'] = 1.0
+            st.number_input(
+                f"Cotação Final ({moeda}/BRL) {side_label}",
+                value=1.0,
+                format="%.4f",
+                key=f"sofr_spot_e_{prefix}",
+                disabled=True,
+            )
+        else:
+            params['spot_end'] = st.number_input(f"Cotação Final ({moeda}/BRL) {side_label}", value=5.50, format="%.4f", key=f"sofr_spot_e_{prefix}")
         params['coupon'] = st.number_input(f"Spread (% a.a.) {side_label}", value=3.0, key=f"sofr_spread_{prefix}") / 100
         
         st.info("📊 SOFR usa índice oficial do New York Fed (T-2 por datas publicadas)")
         
     elif leg_type == "Duplo Indexador":
         params['cotacao_cliente'] = cotacao_cliente
-        params['cotacao_atual'] = st.number_input(f"Cotação Atual {side_label}", value=5.50, format="%.4f", key=f"di_cot_atu_{prefix}")
+        if moeda == "BRL":
+            params['cotacao_atual'] = 1.0
+            st.number_input(
+                f"Cotação Atual ({moeda}/BRL) {side_label}",
+                value=1.0,
+                format="%.4f",
+                key=f"di_cot_atu_{prefix}",
+                disabled=True,
+            )
+        else:
+            params['cotacao_atual'] = st.number_input(f"Cotação Atual ({moeda}/BRL) {side_label}", value=5.50, format="%.4f", key=f"di_cot_atu_{prefix}")
         params['spread_pre'] = st.number_input(f"Spread Pré (% a.a.) {side_label}", value=12.0, key=f"di_spread_pre_{prefix}") / 100
         params['spread_vc'] = st.number_input(f"Spread VC (% a.a.) {side_label}", value=5.0, key=f"di_spread_vc_{prefix}") / 100
         params['use_vc_contra'] = st.checkbox(f"VC Contra-Parte {side_label}", value=True, key=f"di_contra_{prefix}")
@@ -269,17 +307,24 @@ def configure_leg(prefix, side_label, cotacao_cliente, moeda):
 
 
 # Create Leg Factory
+def _attach_currency(leg, moeda):
+    leg.currency = moeda
+    return leg
+
+
 def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
     if leg_type == "Pré-Fixada":
         method = 'exponential' if params['method'] == "Exponencial" else 'linear'
-        return PreLeg(
-            notional, start, end, 
-            params['rate'], 
-            method=method,
-            base=params['base'],
-            cotacao_cliente=params['cotacao'],
-            amortizacao=amortizacao,
-            currency=moeda
+        return _attach_currency(
+            PreLeg(
+                notional, start, end,
+                params['rate'],
+                method=method,
+                base=params['base'],
+                cotacao_cliente=params['cotacao'],
+                amortizacao=amortizacao,
+            ),
+            moeda,
         )
     
     elif leg_type in ["CDI", "CDI Percentual"]:
@@ -294,15 +339,17 @@ def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
                     cdi_factor = BCBDataFetcher.get_cdi_factor(start, end)
                 st.success(f"✅ Fator CDI: {cdi_factor:.6f}")
         
-        return CDILeg(
-            notional, start, end,
-            cdi_factor=cdi_factor,
-            spread=params.get('spread', 0.0),
-            percent=params['percent'],
-            use_percentual_method=use_percentual,
-            cotacao_cliente=params['cotacao'],
-            amortizacao=amortizacao,
-            currency=moeda
+        return _attach_currency(
+            CDILeg(
+                notional, start, end,
+                cdi_factor=cdi_factor,
+                spread=params.get('spread', 0.0),
+                percent=params['percent'],
+                use_percentual_method=use_percentual,
+                cotacao_cliente=params['cotacao'],
+                amortizacao=amortizacao,
+            ),
+            moeda,
         )
     
     elif leg_type == "Moeda (VC)":
@@ -313,14 +360,16 @@ def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
         else:
             spot_start, spot_end = resolve_vc_spots(params, start, end, BCBDataFetcher.get_ptax)
         
-        return VCLeg(
-            notional, start, end,
-            spot_start, spot_end,
-            params['coupon'],
-            cap=params['cap'],
-            use_contra=params['use_contra'],
-            amortizacao_usd=amortizacao,
-            currency=moeda
+        return _attach_currency(
+            VCLeg(
+                notional, start, end,
+                spot_start, spot_end,
+                params['coupon'],
+                cap=params['cap'],
+                use_contra=params['use_contra'],
+                amortizacao_usd=amortizacao,
+            ),
+            moeda,
         )
     
     elif leg_type == "IPCA":
@@ -341,14 +390,16 @@ def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
             vna_start = params['vna_start']
             vna_end = params['vna_end']
         
-        return IPCALeg(
-            notional, start, end,
-            vna_start, vna_end,
-            params['coupon'],
-            capitalizado=params['capitalizado'],
-            cotacao_cliente=params['cotacao'],
-            amortizacao=amortizacao,
-            currency=moeda
+        return _attach_currency(
+            IPCALeg(
+                notional, start, end,
+                vna_start, vna_end,
+                params['coupon'],
+                capitalizado=params['capitalizado'],
+                cotacao_cliente=params['cotacao'],
+                amortizacao=amortizacao,
+            ),
+            moeda,
         )
     
     elif leg_type == "SOFR":
@@ -357,25 +408,29 @@ def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
             end_t2, sofr_end = BCBDataFetcher.get_sofr_index_for_value_date(end)
             st.info(f"📊 SOFR Index: {start_t2} = {sofr_start:.6f} | {end_t2} = {sofr_end:.6f}")
         
-        return SOFRLeg(
-            notional, start, end,
-            sofr_start, sofr_end,
-            params['spot_start'], params['spot_end'],
-            params['coupon'],
-            amortizacao_usd=amortizacao,
-            currency=moeda
+        return _attach_currency(
+            SOFRLeg(
+                notional, start, end,
+                sofr_start, sofr_end,
+                params['spot_start'], params['spot_end'],
+                params['coupon'],
+                amortizacao_usd=amortizacao,
+            ),
+            moeda,
         )
     
     elif leg_type == "Duplo Indexador":
-        return DuploIndexadorLeg(
-            notional, start, end,
-            params['cotacao_cliente'], params['cotacao_atual'],
-            params['spread_pre'], params['spread_vc'],
-            cap=params['cap'],
-            amortizacao_usd=amortizacao,
-            use_vc_contra=params['use_vc_contra'],
-            cap_target=params.get('cap_target', 'vc'),
-            currency=moeda
+        return _attach_currency(
+            DuploIndexadorLeg(
+                notional, start, end,
+                params['cotacao_cliente'], params['cotacao_atual'],
+                params['spread_pre'], params['spread_vc'],
+                cap=params['cap'],
+                amortizacao_usd=amortizacao,
+                use_vc_contra=params['use_vc_contra'],
+                cap_target=params.get('cap_target', 'vc'),
+            ),
+            moeda,
         )
     
     return None

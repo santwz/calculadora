@@ -43,7 +43,7 @@ class PreLeg(SwapLeg):
             base: BASE_DC (360) ou BASE_DU (252)
             cotacao_cliente: Cotação cliente (c_cli)
             amortizacao: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
         """
         super().__init__(notional, start_date, end_date, currency)
         self.rate = rate
@@ -94,7 +94,7 @@ class CDILeg(SwapLeg):
             use_percentual_method: Se True, usa calc_mtm_cdi_percentual
             cotacao_cliente: Cotação cliente
             amortizacao: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
         """
         super().__init__(notional, start_date, end_date, currency)
         self.cdi_factor = cdi_factor
@@ -170,7 +170,7 @@ class VCLeg(SwapLeg):
             cap: CAP (apenas para contra-parte)
             use_contra: Se True, usa calc_vc_contra
             amortizacao_usd: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
             day_count_base: Base de cálculo (360)
         """
         super().__init__(notional, start_date, end_date, currency)
@@ -237,7 +237,7 @@ class IPCALeg(SwapLeg):
             capitalizado: Se True, usa modo capitalizado
             cotacao_cliente: Cotação cliente
             amortizacao: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
         """
         super().__init__(notional, start_date, end_date, currency)
         self.vna_start = vna_start
@@ -286,7 +286,7 @@ class SOFRLeg(SwapLeg):
             spot_end: Cotação atual
             coupon: Spread anual
             amortizacao_usd: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
         """
         super().__init__(notional, start_date, end_date, currency)
         self.sofr_index_start = sofr_index_start
@@ -337,7 +337,7 @@ class DuploIndexadorLeg(SwapLeg):
             spread_vc: Spread para variação cambial
             cap: CAP para VC (se use_vc_contra=True)
             amortizacao_usd: Amortização na moeda do contrato
-            currency: Moeda do contrato (USD ou EUR)
+            currency: Moeda do contrato (USD, EUR ou BRL)
             use_vc_contra: Se True usa VC contra, senão usa VC parte
         """
         super().__init__(notional, start_date, end_date, currency)

@@ -15,7 +15,7 @@ Calculadora de swaps e derivativos com suporte a pontas Pre, CDI, VC cambial, IP
 
 3. **Variacao Cambial (VC)**
    - Parte e contra-parte
-   - Suporte a notional e amortizacao em USD ou EUR
+   - Suporte a notional e amortizacao em USD, EUR ou BRL
    - Suporte a CAP
    - Principal reavaliado pela cotacao final
    - Busca automatica de PTAX via BCB para USD; EUR usa cotacao final manual
@@ -80,7 +80,8 @@ Depois de calcular um swap, a aplicacao disponibiliza o botao
 
 - Valores futuros e fluxos sao calculados em BRL.
 - A interface usa Ponta Ativa e Ponta Passiva para os lados do swap.
-- Notional e amortizacao sao informados na moeda do contrato, com suporte a USD e EUR.
+- Notional e amortizacao sao informados na moeda do contrato, com suporte a USD, EUR e BRL.
+- Quando a moeda do contrato e BRL, a cotacao cliente fica fixada em 1,0000.
 - Fluxos subtraem o principal inicial convertido para BRL, nao o notional na moeda estrangeira.
 - Amortizacao e calculada separadamente do notional e entra nos modelos como juros + amortizacao.
 - Pontas VC e SOFR reavaliam o principal pela cotacao final.
