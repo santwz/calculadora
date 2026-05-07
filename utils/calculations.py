@@ -33,12 +33,12 @@ def calc_pre(principal_usd: float,
     - Exponencial: Valor = P$ * c_cli * [(1+s)^período - 1] + A * c_cli
     
     Args:
-        principal_usd: Principal em USD (P$)
+        principal_usd: Principal na moeda do contrato (P$)
         cotacao_cliente: Cotação cliente no início (c_cli)
         spread: Taxa anual (s) como decimal (ex: 0.04 para 4%)
         dias: Número de dias (DC ou DU conforme base)
         base: Base de cálculo (360 para DC, 252 para DU)
-        amortizacao_brl: Amortização em BRL (A)
+        amortizacao_brl: Amortização na moeda do contrato (A)
         method: 'linear' ou 'exponential'
     
     Returns:
@@ -67,16 +67,16 @@ def calc_mtm_cdi(principal_usd: float,
     """
     Calcula CDI com spread.
     
-    Fórmula: Valor = P$ * c_cli * [F_DI * (1+s)^período - 1] + A
+    Fórmula: Valor = P$ * c_cli * [F_DI * (1+s)^período - 1] + A * c_cli
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente
         fator_di: Fator DI acumulado obtido do BCB
         spread: Spread anual como decimal
         dias: Dias úteis (DU_incl - 1)
         base: Base de cálculo (tipicamente 252)
-        amortizacao_brl: Amortização em BRL
+        amortizacao_brl: Amortização na moeda do contrato
     
     Returns:
         Valor em BRL
@@ -85,7 +85,8 @@ def calc_mtm_cdi(principal_usd: float,
     principal_brl = principal_usd * cotacao_cliente
     
     fator_total = fator_di * ((1 + spread) ** periodo)
-    valor = principal_brl * (fator_total - 1) + amortizacao_brl
+    amort_ajustada = amortizacao_brl * cotacao_cliente
+    valor = principal_brl * (fator_total - 1) + amort_ajustada
     
     return valor
 
@@ -97,22 +98,23 @@ def calc_mtm_cdi_percentual(principal_usd: float,
     """
     Calcula CDI a α% (sem spread, sem FX, sem CAP).
     
-    Fórmula: Valor = P$ * c_cli * [F_α_CDI - 1] + A
+    Fórmula: Valor = P$ * c_cli * [F_α_CDI - 1] + A * c_cli
     
     Onde F_α_CDI é o fator CDI ponderado por α calculado como:
     F_α_CDI = ∏(1 + α * r_CDI_d) para cada dia d
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente
         fator_cdi_percentual: Fator CDI ponderado já calculado
-        amortizacao_brl: Amortização em BRL
+        amortizacao_brl: Amortização na moeda do contrato
     
     Returns:
         Valor em BRL
     """
     principal_brl = principal_usd * cotacao_cliente
-    valor = principal_brl * (fator_cdi_percentual - 1) + amortizacao_brl
+    amort_ajustada = amortizacao_brl * cotacao_cliente
+    valor = principal_brl * (fator_cdi_percentual - 1) + amort_ajustada
     
     return valor
 
@@ -133,13 +135,13 @@ def calc_vc_parte(principal_usd: float,
     - Valor = Juros + Amortização ajustada
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente no início
         cotacao_atual: Cotação de mercado atual
         spread: Spread anual como decimal
         dias: Número de dias
         base: Base de cálculo
-        amortizacao_usd: Amortização em USD
+        amortizacao_usd: Amortização na moeda do contrato
     
     Returns:
         Valor em BRL
@@ -170,13 +172,13 @@ def calc_vc_contra(principal_usd: float,
     Valor = P$ * c_cap * s * período + A * (c_cap / c_cli)
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente no início
         cotacao_atual: Cotação de mercado atual
         spread: Spread anual como decimal
         dias: Número de dias
         base: Base de cálculo
-        amortizacao_usd: Amortização em USD
+        amortizacao_usd: Amortização na moeda do contrato
         cap: CAP opcional (0 = sem CAP)
     
     Returns:
@@ -209,20 +211,20 @@ def calc_ipca(principal_usd: float,
     
     Capitalizado (capitalizado=True):
         P_BRL_cap = P$ * c_cli * F_IPCA
-        A_cap = A * F_IPCA
+        A_cap = A * c_cli * F_IPCA
         Valor = P_BRL_cap * [(1+s)^período - 1] + A_cap
     
     Não Capitalizado (capitalizado=False):
         P_BRL = P$ * c_cli
-        Valor = P_BRL * [F_IPCA * (1+s)^período - 1] + A
+        Valor = P_BRL * [F_IPCA * (1+s)^período - 1] + A * c_cli
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente
         fator_ipca: Fator IPCA (I_final / I_inicial)
         spread: Taxa real anual como decimal
         dias_du: Dias úteis (DU_incl - 1)
-        amortizacao_brl: Amortização em BRL
+        amortizacao_brl: Amortização na moeda do contrato
         capitalizado: Se True, usa modo capitalizado
     
     Returns:
@@ -231,16 +233,18 @@ def calc_ipca(principal_usd: float,
     periodo = dias_du / BASE_DU
     principal_brl = principal_usd * cotacao_cliente
     
+    amortizacao_convertida = amortizacao_brl * cotacao_cliente
+
     if capitalizado:
         principal_cap = principal_brl * fator_ipca
-        amort_cap = amortizacao_brl * fator_ipca
+        amort_cap = amortizacao_convertida * fator_ipca
         
         valor = principal_cap * ((1 + spread) ** periodo) - principal_brl
         return valor + amort_cap
     else:
         # Não capitalizado: fator IPCA multiplica o termo completo
         fator_total = fator_ipca * ((1 + spread) ** periodo)
-        valor = principal_brl * (fator_total - 1) + amortizacao_brl
+        valor = principal_brl * (fator_total - 1) + amortizacao_convertida
         return valor
 
 
@@ -266,7 +270,7 @@ def calc_sofr(principal_usd: float,
     consultar os índices SOFR.
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente
         cotacao_atual: Cotação atual
         sofr_index_inicio: Índice SOFR na data início (T-2 ajustada)
@@ -274,13 +278,15 @@ def calc_sofr(principal_usd: float,
         spread: Spread anual como decimal
         dias: Número de dias
         base: Base de cálculo (tipicamente 360)
-        amortizacao_usd: Amortização em USD
+        amortizacao_usd: Amortização na moeda do contrato
     
     Returns:
         Valor em BRL
     """
+    fx_ratio = cotacao_atual / cotacao_cliente
+
     if dias <= 0:
-        return 0.0
+        return amortizacao_usd * fx_ratio
 
     periodo = dias / base
     
@@ -297,7 +303,6 @@ def calc_sofr(principal_usd: float,
     juros = principal_usd * cotacao_atual * taxa_total * periodo
     
     # Amortização ajustada
-    fx_ratio = cotacao_atual / cotacao_cliente
     amort_ajustada = amortizacao_usd * fx_ratio
     
     return juros + amort_ajustada
@@ -318,7 +323,7 @@ def calc_duplo_indexador(principal_usd: float,
     Calcula Duplo Indexador (máximo entre Pré exponencial e VC).
     
     Opção A: Pré Exponencial
-        Valor_A = P$ * c_cli * [(1+s)^(DU/252) - 1] + A
+        Valor_A = P$ * c_cli * [(1+s)^(DU/252) - 1] + A * c_cli
     
     Opção B: Variação Cambial (parte ou contra)
         Usa calc_vc_parte ou calc_vc_contra
@@ -326,14 +331,14 @@ def calc_duplo_indexador(principal_usd: float,
     Resultado: max(Opção A, Opção B)
     
     Args:
-        principal_usd: Principal em USD
+        principal_usd: Principal na moeda do contrato
         cotacao_cliente: Cotação cliente
         cotacao_atual: Cotação atual
         spread_pre: Spread para pré-fixado
         spread_vc: Spread para variação cambial
         dias_du: Dias úteis
         dias_dc: Dias corridos
-        amortizacao_usd: Amortização em USD (convertida para BRL em pré)
+        amortizacao_usd: Amortização na moeda do contrato
         cap: CAP para VC (se use_vc_contra=True)
         use_vc_contra: Se True usa VC contra, senão usa VC parte
     
@@ -341,14 +346,13 @@ def calc_duplo_indexador(principal_usd: float,
         Dict com opcao_a, opcao_b, valor_final, e opcao_escolhida
     """
     # Opção A: Pré Exponencial com amortização em BRL
-    amortizacao_brl = amortizacao_usd * cotacao_cliente
     opcao_a = calc_pre(
         principal_usd=principal_usd,
         cotacao_cliente=cotacao_cliente,
         spread=spread_pre,
         dias=dias_du,
         base=BASE_DU,
-        amortizacao_brl=amortizacao_brl,
+        amortizacao_brl=amortizacao_usd,
         method='exponential'
     )
     

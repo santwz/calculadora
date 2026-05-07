@@ -80,7 +80,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>💸 Calculadora de Derivativos</h1>
-    <p style="font-size: 1.1rem; margin-top: 0.5rem;">Pré | CDI | Dólar | IPCA | SOFR | Duplo Indexador</p>
+    <p style="font-size: 1.1rem; margin-top: 0.5rem;">Pré | CDI | VC Cambial | IPCA | SOFR | Duplo Indexador</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -128,20 +128,30 @@ def shift_months(base_date, months):
 st.markdown('<div class="section-heading">⚙️ Configuração do Swap</div>', unsafe_allow_html=True)
 
 today = date.today()
-config_col1, config_col2, config_col3, config_col4 = st.columns([1.2, 1, 1, 1])
+config_col0, config_col1, config_col2, config_col3, config_col4, config_col5 = st.columns([0.75, 1.15, 1.15, 1, 1, 1])
+with config_col0:
+    moeda_contrato = st.selectbox("Moeda", ["USD", "EUR"], key="moeda_contrato")
 with config_col1:
-    notional_text = st.text_input("Notional (USD)", value=format_ptbr_number(1_000_000.0), key="notional_usd")
+    notional_text = st.text_input("Notional", value=format_ptbr_number(1_000_000.0), key="notional")
 with config_col2:
-    start_date = st.date_input("Data Início", value=shift_months(today, -2))
+    amortizacao_text = st.text_input("Amortização", value=format_ptbr_number(0.0), key="amortizacao")
 with config_col3:
-    end_date = st.date_input("Data Vencimento", value=shift_months(today, -1))
+    start_date = st.date_input("Data Início", value=shift_months(today, -2))
 with config_col4:
-    cotacao_cliente_global = st.number_input("Cotação Cliente (USD/BRL)", value=5.0, format="%.4f")
+    end_date = st.date_input("Data Vencimento", value=shift_months(today, -1))
+with config_col5:
+    cotacao_cliente_global = st.number_input(f"Cotação Cliente ({moeda_contrato}/BRL)", value=5.0, format="%.4f")
 
 try:
     notional = parse_ptbr_number(notional_text)
 except ValueError:
-    st.error("⚠️ Informe o Notional USD em um formato válido, como 1.000.000,00")
+    st.error("⚠️ Informe o Notional em um formato válido, como 1.000.000,00")
+    st.stop()
+
+try:
+    amortizacao = parse_ptbr_number(amortizacao_text)
+except ValueError:
+    st.error("⚠️ Informe a Amortização em um formato válido, como 100.000,00")
     st.stop()
 
 if start_date >= end_date:
@@ -149,10 +159,10 @@ if start_date >= end_date:
     st.stop()
 
 # Helper to configure leg
-def configure_leg(prefix, side_label, cotacao_cliente):
+def configure_leg(prefix, side_label, cotacao_cliente, moeda):
     leg_type = st.selectbox(
         f"Tipo da Ponta {side_label}", 
-        ["Pré-Fixada", "CDI", "CDI Percentual", "Dólar (VC)", "IPCA", "SOFR", "Duplo Indexador"],
+        ["Pré-Fixada", "CDI", "CDI Percentual", "Moeda (VC)", "IPCA", "SOFR", "Duplo Indexador"],
         key=f"type_{prefix}"
     )
     
@@ -182,13 +192,18 @@ def configure_leg(prefix, side_label, cotacao_cliente):
         
         params['cotacao'] = cotacao_cliente
         
-    elif leg_type == "Dólar (VC)":
+    elif leg_type == "Moeda (VC)":
         params['spot_start'] = cotacao_cliente
-        use_auto_ptax = st.checkbox(f"🤖 Buscar PTAX final automaticamente {side_label}", key=f"auto_ptax_{prefix}")
+        supports_auto_quote = moeda == "USD"
+        if supports_auto_quote:
+            use_auto_ptax = st.checkbox(f"🤖 Buscar cotação final automaticamente {side_label}", key=f"auto_ptax_{prefix}")
+        else:
+            st.info("Para EUR, informe a cotação final manualmente.")
+            use_auto_ptax = False
         params['auto_ptax'] = use_auto_ptax
         
         if not use_auto_ptax:
-            params['spot_end'] = st.number_input(f"Cotação Final {side_label}", value=5.50, format="%.4f", key=f"spot_e_{prefix}")
+            params['spot_end'] = st.number_input(f"Cotação Final ({moeda}/BRL) {side_label}", value=5.50, format="%.4f", key=f"spot_e_{prefix}")
         
         params['coupon'] = st.number_input(f"Cupom Cambial (% a.a.) {side_label}", value=5.0, key=f"cupom_vc_{prefix}") / 100
         params['use_contra'] = st.checkbox(f"Usar Contra-Parte {side_label}", value=False, key=f"contra_{prefix}")
@@ -254,7 +269,7 @@ def configure_leg(prefix, side_label, cotacao_cliente):
 
 
 # Create Leg Factory
-def create_leg(leg_type, params, notional, start, end):
+def create_leg(leg_type, params, notional, amortizacao, moeda, start, end):
     if leg_type == "Pré-Fixada":
         method = 'exponential' if params['method'] == "Exponencial" else 'linear'
         return PreLeg(
@@ -262,7 +277,9 @@ def create_leg(leg_type, params, notional, start, end):
             params['rate'], 
             method=method,
             base=params['base'],
-            cotacao_cliente=params['cotacao']
+            cotacao_cliente=params['cotacao'],
+            amortizacao=amortizacao,
+            currency=moeda
         )
     
     elif leg_type in ["CDI", "CDI Percentual"]:
@@ -283,14 +300,16 @@ def create_leg(leg_type, params, notional, start, end):
             spread=params.get('spread', 0.0),
             percent=params['percent'],
             use_percentual_method=use_percentual,
-            cotacao_cliente=params['cotacao']
+            cotacao_cliente=params['cotacao'],
+            amortizacao=amortizacao,
+            currency=moeda
         )
     
-    elif leg_type == "Dólar (VC)":
+    elif leg_type == "Moeda (VC)":
         if params.get('auto_ptax'):
-            with st.spinner('🔍 Buscando PTAX do BCB...'):
+            with st.spinner('🔍 Buscando cotação do BCB...'):
                 spot_start, spot_end = resolve_vc_spots(params, start, end, BCBDataFetcher.get_ptax)
-                st.success(f"✅ PTAX final: {end} = R$ {spot_end:.4f} | Cotação inicial: R$ {spot_start:.4f}")
+                st.success(f"✅ Cotação final: {end} = R$ {spot_end:.4f} | Cotação inicial: R$ {spot_start:.4f}")
         else:
             spot_start, spot_end = resolve_vc_spots(params, start, end, BCBDataFetcher.get_ptax)
         
@@ -299,7 +318,9 @@ def create_leg(leg_type, params, notional, start, end):
             spot_start, spot_end,
             params['coupon'],
             cap=params['cap'],
-            use_contra=params['use_contra']
+            use_contra=params['use_contra'],
+            amortizacao_usd=amortizacao,
+            currency=moeda
         )
     
     elif leg_type == "IPCA":
@@ -325,7 +346,9 @@ def create_leg(leg_type, params, notional, start, end):
             vna_start, vna_end,
             params['coupon'],
             capitalizado=params['capitalizado'],
-            cotacao_cliente=params['cotacao']
+            cotacao_cliente=params['cotacao'],
+            amortizacao=amortizacao,
+            currency=moeda
         )
     
     elif leg_type == "SOFR":
@@ -338,7 +361,9 @@ def create_leg(leg_type, params, notional, start, end):
             notional, start, end,
             sofr_start, sofr_end,
             params['spot_start'], params['spot_end'],
-            params['coupon']
+            params['coupon'],
+            amortizacao_usd=amortizacao,
+            currency=moeda
         )
     
     elif leg_type == "Duplo Indexador":
@@ -347,8 +372,10 @@ def create_leg(leg_type, params, notional, start, end):
             params['cotacao_cliente'], params['cotacao_atual'],
             params['spread_pre'], params['spread_vc'],
             cap=params['cap'],
+            amortizacao_usd=amortizacao,
             use_vc_contra=params['use_vc_contra'],
-            cap_target=params.get('cap_target', 'vc')
+            cap_target=params.get('cap_target', 'vc'),
+            currency=moeda
         )
     
     return None
@@ -359,11 +386,11 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🟢 Ponta Ativa (Recebe)")
-    type_a, params_a = configure_leg("A", "Ativa", cotacao_cliente_global)
+    type_a, params_a = configure_leg("A", "Ativa", cotacao_cliente_global, moeda_contrato)
 
 with col2:
     st.subheader("🔴 Ponta Passiva (Paga)")
-    type_b, params_b = configure_leg("B", "Passiva", cotacao_cliente_global)
+    type_b, params_b = configure_leg("B", "Passiva", cotacao_cliente_global, moeda_contrato)
 
 st.divider()
 
@@ -371,8 +398,8 @@ st.divider()
 if st.button("🚀 Calcular Swap", type="primary", use_container_width=True):
     try:
         # Create legs
-        leg_long = create_leg(type_a, params_a, notional, start_date, end_date)
-        leg_short = create_leg(type_b, params_b, notional, start_date, end_date)
+        leg_long = create_leg(type_a, params_a, notional, amortizacao, moeda_contrato, start_date, end_date)
+        leg_short = create_leg(type_b, params_b, notional, amortizacao, moeda_contrato, start_date, end_date)
         
         if leg_long is None or leg_short is None:
             st.error("Erro ao criar pernas do swap")
@@ -391,10 +418,11 @@ if st.button("🚀 Calcular Swap", type="primary", use_container_width=True):
         # Results
         st.markdown("### 📊 Resultado do Swap")
         
-        col_info = st.columns([1, 1, 1])
+        col_info = st.columns([1, 1, 1, 1])
         col_info[0].metric("Dias Úteis (DU)", f"{du}")
         col_info[1].metric("Dias Corridos (DC)", f"{dc}")
-        col_info[2].metric("Notional USD", f"US$ {format_ptbr_number(notional, 2)}")
+        col_info[2].metric(f"Notional {moeda_contrato}", f"{moeda_contrato} {format_ptbr_number(notional, 2)}")
+        col_info[3].metric(f"Amortização {moeda_contrato}", f"{moeda_contrato} {format_ptbr_number(amortizacao, 2)}")
         
         st.divider()
         
@@ -432,7 +460,9 @@ if st.button("🚀 Calcular Swap", type="primary", use_container_width=True):
             """, unsafe_allow_html=True)
 
         xlsx_memory = build_calculation_memory_xlsx(
+            currency=moeda_contrato,
             notional=notional,
+            amortizacao=amortizacao,
             start_date=start_date,
             end_date=end_date,
             du=du,

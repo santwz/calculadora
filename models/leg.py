@@ -8,10 +8,11 @@ from utils.calculations import (
 )
 
 class SwapLeg(ABC):
-    def __init__(self, notional: float, start_date, end_date):
+    def __init__(self, notional: float, start_date, end_date, currency: str = "USD"):
         self.notional = notional
         self.start_date = start_date
         self.end_date = end_date
+        self.currency = currency
     
     @abstractmethod
     def calculate_future_value(self, calendar) -> float:
@@ -28,21 +29,23 @@ class SwapLeg(ABC):
 class PreLeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, rate: float, 
                  method: str = 'exponential', base: int = BASE_DU,
-                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0):
+                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0,
+                 currency: str = "USD"):
         """
         Pré-fixado (linear ou exponencial).
         
         Args:
-            notional: Notional em USD (P$)
+            notional: Notional na moeda do contrato (P$)
             start_date: Data início
             end_date: Data fim
             rate: Taxa anual como decimal (ex: 0.12 para 12%)
             method: 'linear' ou 'exponential'
             base: BASE_DC (360) ou BASE_DU (252)
             cotacao_cliente: Cotação cliente (c_cli)
-            amortizacao: Amortização em BRL
+            amortizacao: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.rate = rate
         self.method = method
         self.base = base
@@ -76,12 +79,13 @@ class CDILeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, cdi_factor: float = None,
                  spread: float = 0.0, percent: float = 1.0,
                  use_percentual_method: bool = False,
-                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0):
+                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0,
+                 currency: str = "USD"):
         """
         CDI (com spread ou percentual).
         
         Args:
-            notional: Notional em USD
+            notional: Notional na moeda do contrato
             start_date: Data início
             end_date: Data fim
             cdi_factor: Fator DI acumulado (se None, será calculado)
@@ -89,9 +93,10 @@ class CDILeg(SwapLeg):
             percent: Percentual do CDI (para ambos métodos)
             use_percentual_method: Se True, usa calc_mtm_cdi_percentual
             cotacao_cliente: Cotação cliente
-            amortizacao: Amortização em BRL
+            amortizacao: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.cdi_factor = cdi_factor
         self.spread = spread
         self.percent = percent
@@ -150,12 +155,13 @@ class CDILeg(SwapLeg):
 class VCLeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, spot_start: float, spot_end: float, 
                  coupon: float, cap: float = 0.0, use_contra: bool = False,
-                 amortizacao_usd: float = 0.0, day_count_base: int = BASE_DC):
+                 amortizacao_usd: float = 0.0, day_count_base: int = BASE_DC,
+                 currency: str = "USD"):
         """
         Variação Cambial (parte ou contra-parte).
         
         Args:
-            notional: Notional em USD
+            notional: Notional na moeda do contrato
             start_date: Data início
             end_date: Data fim
             spot_start: PTAX inicial (cotação cliente)
@@ -163,10 +169,11 @@ class VCLeg(SwapLeg):
             coupon: Cupom cambial anual
             cap: CAP (apenas para contra-parte)
             use_contra: Se True, usa calc_vc_contra
-            amortizacao_usd: Amortização em USD
+            amortizacao_usd: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
             day_count_base: Base de cálculo (360)
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.spot_start = spot_start
         self.spot_end = spot_end
         self.coupon = coupon
@@ -215,12 +222,13 @@ class VCLeg(SwapLeg):
 class IPCALeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, vna_start: float, vna_end: float, 
                  coupon: float, capitalizado: bool = True,
-                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0):
+                 cotacao_cliente: float = 1.0, amortizacao: float = 0.0,
+                 currency: str = "USD"):
         """
         IPCA (capitalizado ou não capitalizado).
         
         Args:
-            notional: Notional em USD
+            notional: Notional na moeda do contrato
             start_date: Data início
             end_date: Data fim
             vna_start: VNA inicial
@@ -228,9 +236,10 @@ class IPCALeg(SwapLeg):
             coupon: Juro real anual
             capitalizado: Se True, usa modo capitalizado
             cotacao_cliente: Cotação cliente
-            amortizacao: Amortização em BRL
+            amortizacao: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.vna_start = vna_start
         self.vna_end = vna_end
         self.coupon = coupon
@@ -262,12 +271,13 @@ class IPCALeg(SwapLeg):
 class SOFRLeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, sofr_index_start: float,
                  sofr_index_end: float, spot_start: float, spot_end: float,
-                 coupon: float, amortizacao_usd: float = 0.0):
+                 coupon: float, amortizacao_usd: float = 0.0,
+                 currency: str = "USD"):
         """
         SOFR.
         
         Args:
-            notional: Notional em USD
+            notional: Notional na moeda do contrato
             start_date: Data início
             end_date: Data fim
             sofr_index_start: Índice SOFR inicial (T-2 ajustado)
@@ -275,9 +285,10 @@ class SOFRLeg(SwapLeg):
             spot_start: Cotação inicial
             spot_end: Cotação atual
             coupon: Spread anual
-            amortizacao_usd: Amortização em USD
+            amortizacao_usd: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.sofr_index_start = sofr_index_start
         self.sofr_index_end = sofr_index_end
         self.spot_start = spot_start
@@ -311,12 +322,13 @@ class DuploIndexadorLeg(SwapLeg):
     def __init__(self, notional, start_date, end_date, cotacao_cliente: float,
                  cotacao_atual: float, spread_pre: float, spread_vc: float,
                  cap: float = 0.0, amortizacao_usd: float = 0.0,
-                 use_vc_contra: bool = True, cap_target: str = "vc"):
+                 use_vc_contra: bool = True, cap_target: str = "vc",
+                 currency: str = "USD"):
         """
         Duplo Indexador (máximo entre Pré exponencial e VC).
         
         Args:
-            notional: Notional em USD
+            notional: Notional na moeda do contrato
             start_date: Data início
             end_date: Data fim
             cotacao_cliente: Cotação cliente
@@ -324,10 +336,11 @@ class DuploIndexadorLeg(SwapLeg):
             spread_pre: Spread para pré-fixado
             spread_vc: Spread para variação cambial
             cap: CAP para VC (se use_vc_contra=True)
-            amortizacao_usd: Amortização em USD
+            amortizacao_usd: Amortização na moeda do contrato
+            currency: Moeda do contrato (USD ou EUR)
             use_vc_contra: Se True usa VC contra, senão usa VC parte
         """
-        super().__init__(notional, start_date, end_date)
+        super().__init__(notional, start_date, end_date, currency)
         self.cotacao_cliente = cotacao_cliente
         self.cotacao_atual = cotacao_atual
         self.spread_pre = spread_pre

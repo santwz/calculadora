@@ -14,14 +14,14 @@ NUMBER_FORMAT = '#,##0.000000'
 
 FORMULA_LIBRARY = [
     ["Tipo", "Fórmula", "Descrição"],
-    ["Pré Linear", "P * c_cli * s * dias/base + A", "Juros simples sobre principal convertido para BRL."],
-    ["Pré Exponencial", "P * c_cli * ((1+s)^(dias/base)-1) + A", "Juros compostos sobre principal convertido para BRL."],
-    ["CDI + Spread", "P * c_cli * (F_DI * (1+s)^(DU/252)-1) + A", "Fator DI acumulado com spread anual."],
-    ["CDI Percentual", "P * c_cli * (F_%CDI-1) + A", "Fator CDI ponderado diariamente pelo percentual."],
-    ["VC Parte", "P * c_final * s * DC/360 + A * (c_final/c_inicial)", "Juros cambiais; FV inclui principal em c_final."],
-    ["VC Contra", "P * c_cap * s * DC/360 + A * (c_cap/c_inicial)", "Usa c_cap = min(c_final, CAP) quando aplicável."],
-    ["IPCA Capitalizado", "P*c_cli*F_IPCA*(1+s)^(DU/252) - P*c_cli + A*F_IPCA", "Principal corrigido pelo IPCA e juro real."],
-    ["IPCA Não Capitalizado", "P*c_cli*(F_IPCA*(1+s)^(DU/252)-1) + A", "IPCA e juro real aplicados ao fator total."],
+    ["Pré Linear", "P * c_cli * s * dias/base + A*c_cli", "Juros simples sobre principal convertido para BRL."],
+    ["Pré Exponencial", "P * c_cli * ((1+s)^(dias/base)-1) + A*c_cli", "Juros compostos sobre principal convertido para BRL."],
+    ["CDI + Spread", "P * c_cli * (F_DI * (1+s)^(DU/252)-1) + A*c_cli", "Fator DI acumulado com spread anual."],
+    ["CDI Percentual", "P * c_cli * (F_%CDI-1) + A*c_cli", "Fator CDI ponderado diariamente pelo percentual."],
+    ["VC Parte", "P * c_final * s * DC/360 + A*(c_final/c_inicial)", "Juros cambiais; FV inclui principal em c_final."],
+    ["VC Contra", "P * c_cap * s * DC/360 + A*(c_cap/c_inicial)", "Usa c_cap = min(c_final, CAP) quando aplicável."],
+    ["IPCA Capitalizado", "P*c_cli*F_IPCA*(1+s)^(DU/252) - P*c_cli + A*c_cli*F_IPCA", "Principal corrigido pelo IPCA e juro real."],
+    ["IPCA Não Capitalizado", "P*c_cli*(F_IPCA*(1+s)^(DU/252)-1) + A*c_cli", "IPCA e juro real aplicados ao fator total."],
     ["SOFR", "P*c_final*(spread+r_SOFR)*DC/360 + A*(c_final/c_inicial)", "FV inclui principal em c_final; r_SOFR vem do SOFR Index."],
     ["Duplo Indexador", "max(Componente Pré, Componente VC após CAP)", "Escolhe o maior entre Pré e VC após regra de CAP."],
 ]
@@ -29,7 +29,9 @@ FORMULA_LIBRARY = [
 
 def build_calculation_memory_xlsx(
     *,
+    currency,
     notional,
+    amortizacao,
     start_date,
     end_date,
     du,
@@ -57,7 +59,9 @@ def build_calculation_memory_xlsx(
 
     _build_summary(
         sheets["Resumo"],
+        currency,
         notional,
+        amortizacao,
         start_date,
         end_date,
         du,
@@ -81,13 +85,15 @@ def build_calculation_memory_xlsx(
     return output.getvalue()
 
 
-def _build_summary(ws, notional, start_date, end_date, du, dc, type_active, type_passive, results):
+def _build_summary(ws, currency, notional, amortizacao, start_date, end_date, du, dc, type_active, type_passive, results):
     _title(ws, "Memória de Cálculo do Swap", "Resumo executivo do cálculo auditável")
     rows = [
         ["Gerado em", datetime.now()],
         ["Data Início", start_date],
         ["Data Vencimento", end_date],
-        ["Notional USD", notional],
+        ["Moeda", currency],
+        [f"Notional {currency}", notional],
+        [f"Amortização {currency}", amortizacao],
         ["Dias Úteis (DU)", du],
         ["Dias Corridos (DC)", dc],
     ]
@@ -99,7 +105,7 @@ def _build_summary(ws, notional, start_date, end_date, du, dc, type_active, type
         ["Passiva", type_passive, results["fv_short"], results["flow_short"]],
         ["Ajuste Líquido", "Ativa - Passiva", results["net_value"], None],
     ]
-    _write_table(ws, table, start_row=10, start_col=1)
+    _write_table(ws, table, start_row=12, start_col=1)
 
 
 def _build_inputs(ws, params_active, params_passive):
@@ -152,7 +158,8 @@ def _params_rows(side, params):
 
 def _resolved_leg_rows(leg_type, leg):
     rows = [
-        ["Notional USD", getattr(leg, "notional", None), "Modelo"],
+        ["Moeda", getattr(leg, "currency", None), "Modelo"],
+        [f"Notional {getattr(leg, 'currency', 'USD')}", getattr(leg, "notional", None), "Modelo"],
         ["Data Início", getattr(leg, "start_date", None), "Modelo"],
         ["Data Vencimento", getattr(leg, "end_date", None), "Modelo"],
     ]
@@ -162,6 +169,7 @@ def _resolved_leg_rows(leg_type, leg):
         "CDI": ["cdi_factor", "spread", "percent", "cotacao_cliente", "amortizacao"],
         "CDI Percentual": ["cdi_factor", "percent", "cotacao_cliente", "amortizacao"],
         "Dólar (VC)": ["spot_start", "spot_end", "coupon", "cap", "use_contra", "amortizacao_usd"],
+        "Moeda (VC)": ["spot_start", "spot_end", "coupon", "cap", "use_contra", "amortizacao_usd"],
         "IPCA": ["vna_start", "vna_end", "coupon", "capitalizado", "cotacao_cliente", "amortizacao"],
         "SOFR": ["sofr_index_start", "sofr_index_end", "spot_start", "spot_end", "coupon", "amortizacao_usd"],
         "Duplo Indexador": [
@@ -203,9 +211,10 @@ def _market_rows(side, leg_type, params, leg):
     if leg_type in ["CDI", "CDI Percentual"]:
         source = "BCB SGS 12" if params.get("auto_cdi") else "Manual"
         rows.append([side, "Fator CDI", getattr(leg, "cdi_factor", None), source])
-    elif leg_type == "Dólar (VC)":
+    elif leg_type in ["Dólar (VC)", "Moeda (VC)"]:
         rows.append([side, "Cotação Inicial", getattr(leg, "spot_start", None), "Manual"])
-        rows.append([side, "Cotação Final", getattr(leg, "spot_end", None), "BCB PTAX" if params.get("auto_ptax") else "Manual"])
+        auto_source = "BCB PTAX" if params.get("auto_ptax") else "Manual"
+        rows.append([side, "Cotação Final", getattr(leg, "spot_end", None), auto_source])
     elif leg_type == "IPCA":
         if params.get("auto_ipca") and params.get("manual_ipca_start"):
             start_source = "Manual"
@@ -232,11 +241,12 @@ def _market_rows(side, leg_type, params, leg):
 
 def _formula_for_type(leg_type):
     formulas = {
-        "Pré-Fixada": "P * c_cli * ((1+s)^(dias/base)-1) + A",
-        "CDI": "P * c_cli * (F_DI * (1+s)^(DU/252)-1) + A",
-        "CDI Percentual": "P * c_cli * (F_%CDI-1) + A",
+        "Pré-Fixada": "P * c_cli * ((1+s)^(dias/base)-1) + A*c_cli",
+        "CDI": "P * c_cli * (F_DI * (1+s)^(DU/252)-1) + A*c_cli",
+        "CDI Percentual": "P * c_cli * (F_%CDI-1) + A*c_cli",
         "Dólar (VC)": "FV = P*c_final + P*c_final*s*DC/360 + A*(c_final/c_inicial)",
-        "IPCA": "P*c_cli*F_IPCA*(1+s)^(DU/252) - P*c_cli + A*F_IPCA",
+        "Moeda (VC)": "FV = P*c_final + P*c_final*s*DC/360 + A*(c_final/c_inicial)",
+        "IPCA": "P*c_cli*F_IPCA*(1+s)^(DU/252) - P*c_cli + A*c_cli*F_IPCA",
         "SOFR": "FV = P*c_final + P*c_final*(spread+r_SOFR)*DC/360 + A*(c_final/c_inicial)",
         "Duplo Indexador": "max(Componente Pré, Componente VC após CAP)",
     }
@@ -346,6 +356,8 @@ def _safe_value(value):
 def _pretty_key(key):
     labels = {
         "type": "Tipo",
+        "currency": "Moeda",
+        "moeda": "Moeda",
         "rate": "Taxa",
         "method": "Método",
         "base": "Base",
@@ -373,6 +385,6 @@ def _pretty_key(key):
         "vna_end": "VNA Final",
         "capitalizado": "Capitalizado",
         "amortizacao": "Amortização",
-        "amortizacao_usd": "Amortização USD",
+        "amortizacao_usd": "Amortização",
     }
     return labels.get(str(key), str(key).replace("_", " ").title())

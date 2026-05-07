@@ -1,6 +1,6 @@
 # Calculadora de Derivativos
 
-Calculadora de swaps e derivativos com suporte a pontas Pre, CDI, VC/Dolar, IPCA, SOFR e Duplo Indexador.
+Calculadora de swaps e derivativos com suporte a pontas Pre, CDI, VC cambial, IPCA, SOFR e Duplo Indexador.
 
 ## Funcionalidades
 
@@ -15,9 +15,10 @@ Calculadora de swaps e derivativos com suporte a pontas Pre, CDI, VC/Dolar, IPCA
 
 3. **Variacao Cambial (VC)**
    - Parte e contra-parte
+   - Suporte a notional e amortizacao em USD ou EUR
    - Suporte a CAP
    - Principal reavaliado pela cotacao final
-   - Busca automatica de PTAX via BCB
+   - Busca automatica de PTAX via BCB para USD; EUR usa cotacao final manual
 
 4. **IPCA**
    - Capitalizado e nao capitalizado
@@ -79,7 +80,9 @@ Depois de calcular um swap, a aplicacao disponibiliza o botao
 
 - Valores futuros e fluxos sao calculados em BRL.
 - A interface usa Ponta Ativa e Ponta Passiva para os lados do swap.
-- Fluxos subtraem o principal inicial convertido para BRL, nao o notional em USD.
+- Notional e amortizacao sao informados na moeda do contrato, com suporte a USD e EUR.
+- Fluxos subtraem o principal inicial convertido para BRL, nao o notional na moeda estrangeira.
+- Amortizacao e calculada separadamente do notional e entra nos modelos como juros + amortizacao.
 - Pontas VC e SOFR reavaliam o principal pela cotacao final.
 - SOFR nao usa mais indice simulado; usa `SOFRAI.index` do New York Fed.
 - CDI percentual manual usa taxa diaria equivalente antes de aplicar o percentual.
